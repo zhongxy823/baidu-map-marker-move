@@ -1,0 +1,302 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>百度地图 API 覆盖点平移</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.3, user-scalable=no">
+    <meta name="description" content="百度地图 API 覆盖点平移">
+    <meta name="author" content="yaner">
+    <style>
+        html,body,#map{
+            height: 100%;
+            width: 100%;
+            margin: 0;
+        }
+        #map{
+            height: 90%;
+        }
+        #buttons {
+          display: flex;
+          justify-content: space-between;
+          width: 400px;
+          margin: 12px auto;
+        }
+        #stop, #play, #replay, #type {
+          cursor: pointer;
+          height: 34px;
+          line-height: 34px;
+          border-radius: 2px;
+          background-color: #5298ff;
+          color: #fff;
+          padding: 0 12px;
+        }
+    </style>
+    <script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=FCCAtTiReIsYlxZ7e113GKnsaPuWzxhN"></script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="buttons">
+      <div id="stop">暂停</div>   
+      <div id="play">播放</div>   
+      <div id="replay">重新播放</div> 
+      <div id="type">线条添加方向</div>
+    </div>    
+    <script>
+      var data = [
+        {
+            "id": 3607,
+            "latitude": "30.29038078067957",
+            "longitude": "120.00749168359494",
+            "recordDate": "2022-04-20T17:49:18.000+0800"
+        },
+        {
+            "id": 3678,
+            "latitude": "30.290288267894883",
+            "longitude": "120.00754817005249",
+            "recordDate": "2022-04-20T18:29:32.000+0800"
+        },
+        {
+            "id": 3683,
+            "latitude": "30.290270210846124",
+            "longitude": "120.00743910387077",
+            "recordDate": "2022-04-20T18:31:15.000+0800"
+        },
+        {
+            "id": 3685,
+            "latitude": "30.290333152914947",
+            "longitude": "120.00742006760488",
+            "recordDate": "2022-04-20T18:31:49.000+0800"
+        },
+        {
+            "id": 3688,
+            "latitude": "30.290493060347043",
+            "longitude": "120.00608602738974",
+            "recordDate": "2022-04-20T18:32:58.000+0800"
+        },
+        {
+            "id": 3690,
+            "latitude": "30.29036182117118",
+            "longitude": "120.00665414361747",
+            "recordDate": "2022-04-20T18:33:31.000+0800"
+        },
+        {
+            "id": 3694,
+            "latitude": "30.2904627316243",
+            "longitude": "120.00656319580074",
+            "recordDate": "2022-04-20T18:34:33.000+0800"
+        },
+        {
+            "id": 3696,
+            "latitude": "30.290647876598843",
+            "longitude": "120.0052785061591",
+            "recordDate": "2022-04-20T18:35:04.000+0800"
+        }
+      ]
+      var map = new BMap.Map("map");
+      map.enableScrollWheelZoom(true);
+      map.centerAndZoom(new BMap.Point(data[2].longitude, data[2].latitude), 20);
+      var points = getPoints(data); // 获取data数据中的经纬度点并格式化点为BMap点
+
+      var allPoints = [];
+      for(var i = 1; i < points.length; i++){ // 将所有的点分割为n个小点, 用于移动过度动画              
+          allPoints.push.apply(allPoints,getPoins(points[i-1],points[i],500));
+      }
+
+      var icon = new BMap.Icon("https://fe-cloud.uni-ubi.com/image/1639107532109-bluePoint.png?x-oss-process=img/q/80",new BMap.Size(16,16)); // 移动点icon
+      var mkrPoint =new BMap.Marker(allPoints[0], { icon: icon}); // 移动的点
+
+
+      /** 有方向的线条  👇 **/
+      var sy = new BMap.Symbol(BMap_Symbol_SHAPE_BACKWARD_OPEN_ARROW, {
+        scale: 0.6,//图标缩放大小
+        strokeColor:'#fff',//设置矢量图标的线填充颜色
+        strokeWeight: '1',//设置线宽
+      });
+      var icons = new BMap.IconSequence(sy, '3', '50');
+      var directionPolyline =new BMap.Polyline(points, {
+        enableEditing: false,//是否启用线编辑，默认为false
+        enableClicking: true,//是否响应点击事件，默认为true
+        icons:[icons],
+        strokeWeight:'6',//折线的宽度，以像素为单位
+        strokeOpacity: 1 ,//折线的透明度，取值范围0 - 1
+        strokeColor:"#5298ff" //折线颜色
+      });
+      /** 有方向的线条  👆 **/
+
+      /** 普通线条  👇 **/
+      var polyline = new BMap.Polyline(points, {strokeColor:"#5298ff", strokeWeight:3, strokeOpacity:0.8}); 
+      map.addOverlay(polyline); 
+      /** 普通线条  👆 **/
+
+      addMarker('start',points[0]); // 设置起点
+      addMarker('end',points[points.length - 1]); // 设置终点
+
+
+      move(allPoints,points); //参数：allPoints分割点、points实际数据点， 执行动画
+
+      /**
+      *添加起点、终点
+      *@param type 类型，起点start、终点end
+      *@param point BMap经纬点
+      */
+      function addMarker(type,point){
+          if(type == "start"){
+              var icon01 = new BMap.Icon("https://fe-cloud.uni-ubi.com/image/1646031203574-device_point_2.png?x-oss-process=img/q/80",new BMap.Size(24,38),{anchor: new BMap.Size(16,28)});
+              var mkr01 =new BMap.Marker(point, { icon: icon01});
+              map.addOverlay(mkr01); 
+          }else if(type == "end"){
+              var icon02 = new BMap.Icon("https://fe-cloud.uni-ubi.com/image/1646029742276-device_point.png?x-oss-process=img/q/80",new BMap.Size(24,38),{anchor: new BMap.Size(16,28)});
+              var mkr02 =new BMap.Marker(point, { icon: icon02});
+              map.addOverlay(mkr02);
+          }
+      }
+
+
+      /**
+      *获取data数据中的经纬度点并格式化点为BMap点
+      *@param data数据
+      *@return points BMap经纬点数组
+      */
+      function getPoints(data){
+          var points = [];
+          for (var i = 0; i < data.length; i++) {
+              var x = data[i].longitude;
+              var y = data[i].latitude;
+              points[i] = new BMap.Point(x,y);
+
+          }
+          return points;
+      }
+
+
+      /**
+      *获取prvePoint和newPoint之间的num个点
+      *@param prvePoint 起点
+      *@param newPoint 终点
+      *@param num 取两中间的点个数
+      *@return points 两点之间的num个点的数组   
+      */
+      function getPoins(prvePoint,newPoint,num){
+          var lat ;
+          var lng ;
+          var points = [];
+          if(prvePoint.lng>newPoint.lng&&prvePoint.lat>newPoint.lat){         
+              lat = Math.abs(prvePoint.lat-newPoint.lat)/num;
+              lng = Math.abs(prvePoint.lng-newPoint.lng)/num;
+              points[0] = prvePoint;
+              for(var i = 1;i<num-1;i++){
+                  points[i] = new BMap.Point(prvePoint.lng-lng*(i+1),prvePoint.lat-lat*(i+1)); 
+              }
+          }
+          if(prvePoint.lng>newPoint.lng&&prvePoint.lat<newPoint.lat){         
+              lat = Math.abs(prvePoint.lat-newPoint.lat)/num;
+              lng = Math.abs(prvePoint.lng-newPoint.lng)/num;
+              points[0] = prvePoint;
+              for(var i = 1;i<num-1;i++){
+                  points[i] = new BMap.Point(prvePoint.lng-lng*(i+1),prvePoint.lat+lat*(i+1)); 
+              }
+          }
+          if(prvePoint.lng<newPoint.lng&&prvePoint.lat>newPoint.lat){         
+              lat = Math.abs(prvePoint.lat-newPoint.lat)/num;
+              lng = Math.abs(prvePoint.lng-newPoint.lng)/num;
+              points[0] = prvePoint;
+              for(var i = 1;i<num-1;i++){
+                  points[i] = new BMap.Point(prvePoint.lng+lng*(i+1),prvePoint.lat-lat*(i+1)); 
+              }
+          }
+          if(prvePoint.lng<newPoint.lng&&prvePoint.lat<newPoint.lat){         
+              lat = Math.abs(prvePoint.lat-newPoint.lat)/num;
+              lng = Math.abs(prvePoint.lng-newPoint.lng)/num;
+              points[0] = prvePoint;
+              for(var i = 1;i<num-1;i++){
+                  points[i] = new BMap.Point(prvePoint.lng+lng*(i+1),prvePoint.lat+lat*(i+1)); 
+              }
+          }
+
+          return points;
+      }
+
+
+
+      /** 页面按钮交互  👇 **/
+      var stopDom = document.getElementById('stop')
+      var playDom = document.getElementById('play')
+      var replayDom = document.getElementById('replay')
+      var typeDom = document.getElementById('type')
+
+      var stopFlag = false // 暂停标识
+      var playI = 0 // 当前播放至的allPoints位置
+      var playJ = 0 // 当前播放至的points位置
+
+      stopDom.addEventListener("click",stopFun); // 暂停
+      function stopFun(){
+        stopFlag = true            
+      }
+      playDom.addEventListener("click",playFun); // 播放
+      function playFun(){
+        stopFlag = false  
+        move(allPoints,points);
+      }
+      replayDom.addEventListener("click",replayFun); // 重新播放
+      function replayFun(){
+        stopFlag = true 
+        setTimeout(() => {
+          stopFlag = false  
+          playI = 0
+          playJ = 0
+          move(allPoints,points);//参数：allPoints分割点、points实际数据点、每个点的时间差（单位：毫秒）
+        }, 100)
+      }
+      typeDom.addEventListener("click",typeChangeFun); // 切换有方向的线条
+      function typeChangeFun(){
+        stopFlag = true 
+        setTimeout(() => {
+          stopFlag = false  
+          playI = 0
+          playJ = 0
+          map.addOverlay(directionPolyline);
+          move(allPoints,points);//参数：allPoints分割点、points实际数据点、每个点的时间差（单位：毫秒）
+        }, 100)
+      }
+      /** 页面按钮交互  👆 **/
+
+
+
+      /**
+      *@param allPoints 打散后的一个个点的数组
+      *@param points 初始的位置数组
+      *@param time 位置与下一个位置移动的时间
+      */
+      function move(allPoints,points,time = 0.01){
+          map.addOverlay(mkrPoint); // 添加移动的标记点
+          var paths = allPoints.length;  // 获得有几个点
+          var j = playJ || 0; // 暂停时点击播放从暂停的位置播放
+          var i = playI || 0; // 暂停时点击播放从暂停的位置播放
+          function resetMkPoint(i){
+              if (stopFlag) { // 暂停时，得到当前行走到的位置
+                playJ = j;
+                playI = i;
+                return
+              }
+              if(mkrPoint.getPosition().lng == points[j].lng && mkrPoint.getPosition().lat == points[j].lat){ // 当执行到data的位置时，要将j+1
+                  j++;
+              }
+              mkrPoint.setPosition(allPoints[i]);
+              if(i < paths && !stopFlag){
+                  playI = i
+                  setTimeout(function(){
+                      i++;
+                      resetMkPoint(i);
+                  }, time);
+              } else {
+                  // 设置位置为0，以便暂停后播放可从头播放
+                playJ = 0;
+                playI = 0;
+              }
+          }
+          setTimeout(function(){
+              resetMkPoint(i);
+          }, time)
+      }
+    </script>
+  </body>
+</html>
